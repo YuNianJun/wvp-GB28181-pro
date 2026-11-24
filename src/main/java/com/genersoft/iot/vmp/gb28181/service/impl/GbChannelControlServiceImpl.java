@@ -30,7 +30,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持云台控制", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.ptz(channel, frontEndControlCode, callback);
     }
@@ -43,7 +43,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持预置位控制", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.preset(channel, frontEndControlCode, callback);
     }
@@ -56,7 +56,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持FI指令", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.fi(channel, frontEndControlCode, callback);
     }
@@ -69,7 +69,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持巡航指令", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.tour(channel, frontEndControlCode, callback);
     }
@@ -82,7 +82,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持扫描指令", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.scan(channel, frontEndControlCode, callback);
     }
@@ -95,7 +95,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持辅助开关控制指令", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.auxiliary(channel, frontEndControlCode, callback);
     }
@@ -108,7 +108,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持雨刷控制", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.wiper(channel, frontEndControlCode, callback);
     }
@@ -121,7 +121,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持预置位查询", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.queryPreset(channel, callback);
     }
@@ -134,7 +134,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         if (sourcePTZService == null) {
             // 通道数据异常
             log.error("[点播通用通道] 类型： {} 不支持拉框控制", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.dragZoom(channel, frontEndControlCode, callback);
     }
@@ -146,7 +146,7 @@ public class GbChannelControlServiceImpl implements IGbChannelControlService {
         ISourcePTZService sourcePTZService = sourcePTZServiceMap.get(ChannelDataType.PTZ_SERVICE + dataType);
         if (sourcePTZService == null) {
             log.error("[通用通道] 类型： {} 不支持看守位设置", dataType);
-            throw new PlayException(Response.BUSY_HERE, "channel not support");
+            throw new PlayException(Response.BUSY_HERE, "该通道不支持云台");
         }
         sourcePTZService.homePosition(channel, enabled, resetTime, presetIndex, callback);
     }

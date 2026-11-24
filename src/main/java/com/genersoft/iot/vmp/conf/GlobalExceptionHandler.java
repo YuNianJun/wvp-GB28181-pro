@@ -1,6 +1,7 @@
 package com.genersoft.iot.vmp.conf;
 
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
+import com.genersoft.iot.vmp.gb28181.bean.PlayException;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,17 @@ public class GlobalExceptionHandler {
     public WVPResult<String> exceptionHandler(Exception e) {
         log.error("[全局异常]： ", e);
         return WVPResult.fail(ErrorCode.ERROR500.getCode(), e.getMessage());
+    }
+
+    /**
+     * 点流/云台等业务异常：按业务错误返回，HTTP 仍为 200，
+     * 前端请求拦截器会读取 code != 0 并弹出 msg。
+     */
+    @ExceptionHandler(PlayException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public WVPResult<String> exceptionHandler(PlayException e) {
+        log.warn("[全局异常][PlayException] code({}), msg({})", e.getCode(), e.getMsg());
+        return WVPResult.fail(e.getCode(), e.getMsg());
     }
 
     /**
