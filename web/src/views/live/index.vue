@@ -15,6 +15,13 @@
             <i class="iconfont icon-a-mti-6fenpingshi btn" :class="{active: spiltIndex === 2}" @click="spiltIndex=2" />
             <i class="iconfont icon-a-mti-9fenpingshi btn" :class="{active: spiltIndex === 3}" @click="spiltIndex=3" />
           </div>
+          <div class="preset-controls">
+            <PlayPresetBar
+              :split-num="layout[spiltIndex].spilt"
+              :channel-ids="channelIds"
+              @apply="applyPreset"
+            />
+          </div>
           <div class="global-player-control">
             播放器:
             <el-select v-model="globalPlayer" size="mini" style="width: 120px">
@@ -80,18 +87,20 @@ import PlayerTabs from '../common/playerTabs.vue'
 import DeviceTree from '../common/DeviceTree.vue'
 import channelPtzPanel from '../channel/common/channelPtzPanel.vue'
 import LivePtzPreset from './LivePtzPreset.vue'
+import PlayPresetBar from './PlayPresetBar.vue'
 import screenFull from 'screenfull'
 
 export default {
   name: 'Live',
   components: {
-    PlayerTabs, DeviceTree, channelPtzPanel, LivePtzPreset
+    PlayerTabs, DeviceTree, channelPtzPanel, LivePtzPreset, PlayPresetBar
   },
 
   data() {
     return {
-      streamInfo: [null],
-      videoTip: [''],
+      streamInfo: [], // 每格播放的流信息， 索引对应分屏序号
+      videoTip: [], // 每格提示文案， 如拉流中、播放失败
+      channelIds: [], // 每格正在播放的通道ID， 保存预案时使用
       globalPlayer: 'jessibuca',
       sidebarVisible: true, // 侧边栏
       ptzVisible: false, // 云台面板
@@ -157,6 +166,8 @@ export default {
   watch: {
     spiltIndex(newValue) {
       console.log('切换画幅;' + newValue)
+      // 分屏数量变化时同步每格数据长度， 避免映射错位
+      this.resizeGrid(this.layout[newValue].spilt)
       const that = this
       for (let i = 1; i <= this.layout[newValue].spilt; i++) {
         if (!that.$refs['playerTabs' + i]) {
@@ -190,7 +201,16 @@ export default {
     this.handleResize()
   },
   created() {
-    this.checkPlayByParam()
+    // 先恢复本地的分屏数和播放器偏好
+    this.restorePreference()
+    this.resizeGrid(this.layout[this.spiltIndex].spilt)
+    if (this.$route.query.channelId) {
+      // URL 指定了通道时优先播放该通道
+      this.checkPlayByParam()
+    } else {
+      // 优先按服务端保存的默认预案恢复固定的分屏画面
+      this.loadDefaultPreset()
+    }
   },
   destroyed() {
     clearTimeout(this.updateLooper)
@@ -246,7 +266,7 @@ export default {
     },
     clickEvent: function(channelId) {
       this.currentChannelId = channelId
-      this.sendDevicePush(channelId)
+      this.playAt(channelId, this.playerIdx)
     },
     getPlayerClass: function(splitIndex, i) {
       let classStr = 'play-box-' + splitIndex + '-' + i
@@ -258,22 +278,24 @@ export default {
     contextMenuEvent: function(device, event, data, isCatalog) {
 
     },
-    // 通知设备上传媒体流
-    sendDevicePush: function(channelId) {
-      this.save(channelId)
-      const idxTmp = this.playerIdx
-      this.$set(this.streamInfo, idxTmp, null)
-      this.$set(this.videoTip, idxTmp, '正在拉流...')
-      this.$store.dispatch('commonChanel/playChannel', channelId)
-        .then(data => {
-          this.setPlayStream(data.transcodeStream || data, idxTmp)
-        })
-        .catch(err => {
-          this.$set(this.videoTip, idxTmp, '播放失败: ' + err)
-        })
-        .finally(() => {
-          this.loading = false
-        })
+    // 在指定的分屏格子拉流播放
+    playAt: async function(channelId, idx) {
+      if (idx < 0 || idx >= this.layout[this.spiltIndex].spilt) {
+        return
+      }
+      this.$set(this.streamInfo, idx, null)
+      this.$set(this.videoTip, idx, '正在拉流...')
+      this.$set(this.channelIds, idx, channelId)
+      this.saveLocalPlayData()
+      try {
+        const data = await this.$store.dispatch('commonChanel/playChannel', channelId)
+        const streamInfo = data && data.transcodeStream ? data.transcodeStream : data
+        this.setPlayStream(streamInfo, idx)
+      } catch (err) {
+        this.$set(this.videoTip, idx, '播放失败: ' + err)
+      } finally {
+        this.loading = false
+      }
     },
     setPlayStream(streamInfo, idx) {
       this.$set(this.streamInfo, idx, streamInfo)
@@ -291,22 +313,109 @@ export default {
     checkPlayByParam() {
       const query = this.$route.query
       if (query.channelId) {
-        this.sendDevicePush(query.channelId)
+        this.playAt(Number(query.channelId), this.playerIdx)
       }
     },
-
-    save(item) {
-      const dataStr = window.localStorage.getItem('playData') || '[]'
-      const data = JSON.parse(dataStr)
-      data[this.playerIdx] = item
-      window.localStorage.setItem('playData', JSON.stringify(data))
+    // 恢复本地的分屏数和播放器偏好
+    restorePreference() {
+      const splitStr = window.localStorage.getItem('split')
+      if (splitStr !== null) {
+        const split = Number(splitStr)
+        if (!Number.isNaN(split) && split >= 0 && split < this.layout.length) {
+          this.spiltIndex = split
+        }
+      }
+      const globalPlayer = window.localStorage.getItem('globalPlayer')
+      if (globalPlayer) {
+        this.globalPlayer = globalPlayer
+      }
     },
-    clear(idx) {
-      const dataStr = window.localStorage.getItem('playData') || '[]'
-      const data = JSON.parse(dataStr)
-      data[idx - 1] = null
-      console.log(data)
-      window.localStorage.setItem('playData', JSON.stringify(data))
+    // 按分屏数同步每格数据长度， 避免数组越界导致画面映射错位
+    resizeGrid(size) {
+      for (let i = this.streamInfo.length; i < size; i++) {
+        this.$set(this.streamInfo, i, null)
+        this.$set(this.videoTip, i, '')
+        this.$set(this.channelIds, i, null)
+      }
+      if (this.streamInfo.length > size) {
+        this.streamInfo.splice(size)
+        this.videoTip.splice(size)
+        this.channelIds.splice(size)
+      }
+      if (this.playerIdx >= size) {
+        this.playerIdx = 0
+      }
+    },
+    // 清空所有分屏画面， 只销毁本地播放器， 不调用后端停止接口， 避免影响其他终端
+    clearGrid() {
+      for (let i = 0; i < this.streamInfo.length; i++) {
+        this.$set(this.streamInfo, i, null)
+        this.$set(this.videoTip, i, '')
+        this.$set(this.channelIds, i, null)
+      }
+      this.saveLocalPlayData()
+    },
+    // 加载服务端保存的默认预案并自动铺屏
+    loadDefaultPreset: async function() {
+      try {
+        const preset = await this.$store.dispatch('playPreset/getDefaultPreset')
+        if (preset && preset.itemList && preset.itemList.length > 0) {
+          await this.applyPreset(preset)
+          return
+        }
+      } catch (err) {
+        console.warn('[live] 加载默认分屏预案失败， 使用本地记忆恢复', err)
+      }
+      await this.restoreLocalPlayData()
+    },
+    // 应用预案： 切换分屏数后串行拉流， 避免同时向设备发起多路 INVITE
+    applyPreset: async function(preset) {
+      if (!preset || !preset.itemList || preset.itemList.length === 0) {
+        return
+      }
+      const splitIndex = this.layout.findIndex(layoutItem => layoutItem.spilt === preset.splitNum)
+      if (splitIndex >= 0) {
+        this.spiltIndex = splitIndex
+      }
+      this.resizeGrid(this.layout[this.spiltIndex].spilt)
+      this.clearGrid()
+      this.playerIdx = 0
+      await new Promise(resolve => this.$nextTick(resolve))
+      for (const item of preset.itemList) {
+        const idx = item.sort - 1
+        if (idx < 0 || idx >= this.layout[this.spiltIndex].spilt) {
+          continue
+        }
+        await this.playAt(item.channelId, idx)
+        // 间隔 300ms 再发起下一路， 降低设备侧并发拉流的压力
+        await this.sleep(300)
+      }
+    },
+    // 服务端没有预案时， 兼容旧版本保存的本地分屏记忆
+    restoreLocalPlayData: async function() {
+      let playData = []
+      try {
+        playData = JSON.parse(window.localStorage.getItem('playData') || '[]')
+      } catch (err) {
+        playData = []
+      }
+      if (!Array.isArray(playData) || playData.length === 0) {
+        return
+      }
+      const size = this.layout[this.spiltIndex].spilt
+      for (let i = 0; i < playData.length && i < size; i++) {
+        if (playData[i]) {
+          await this.playAt(playData[i], i)
+          await this.sleep(300)
+        }
+      }
+    },
+    // 同步当前分屏布局到本地， 作为服务端不可用时的降级方案
+    saveLocalPlayData() {
+      window.localStorage.setItem('playData', JSON.stringify(this.channelIds))
+    },
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms))
     },
     fullScreen: function() {
       if (screenFull.isEnabled) {
@@ -467,6 +576,11 @@ export default {
   font-size: 14px;
 }
 
+.preset-controls {
+  display: flex;
+  align-items: center;
+}
+
 .global-player-control {
   display: flex;
   align-items: center;
@@ -550,8 +664,9 @@ export default {
     padding: 5px 0;
   }
 
-  .split-controls, .fullscreen-control {
+  .split-controls, .preset-controls, .fullscreen-control {
     width: 100%;
+    justify-content: center;
     text-align: center;
     padding: 5px 0;
   }
